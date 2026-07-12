@@ -1,13 +1,16 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tantml:parameter>
 import { useState } from "react";
 import { toast } from "sonner";
-import { useStore } from "@/lib/store";
+import { useMaintenance, useCreateMaintenance, useUpdateMaintenance } from "@/hooks/useMaintenance";
+import { useVehicles } from "@/hooks/useVehicles";
+import { mapApiMaintenanceToFrontend, mapApiVehiclesToFrontend } from "@/lib/mappers";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -15,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AlertCircle } from "lucide-react";
 import { inr } from "@/lib/format";
 
 export const Route = createFileRoute("/_app/maintenance")({
@@ -22,7 +26,18 @@ export const Route = createFileRoute("/_app/maintenance")({
 });
 
 function Maintenance() {
-  const { vehicles, maintenance, addMaintenance, closeMaintenance } = useStore();
+  // Fetch data from API
+  const { data: apiMaintenance = [], isLoading: maintenanceLoading, error: maintenanceError } = useMaintenance();
+  const { data: apiVehicles = [], isLoading: vehiclesLoading, error: vehiclesError } = useVehicles();
+  
+  // Map API data to frontend format
+  const maintenance = mapApiMaintenanceToFrontend(apiMaintenance);
+  const vehicles = mapApiVehiclesToFrontend(apiVehicles);
+
+  // Mutations
+  const createMaintenance = useCreateMaintenance();
+  const updateMaintenance = useUpdateMaintenance();
+
   const [vehicleId, setVehicleId] = useState("");
   const [serviceType, setServiceType] = useState("Oil Change");
   const [cost, setCost] = useState(0);
@@ -30,12 +45,67 @@ function Maintenance() {
 
   const eligible = vehicles.filter((v) => v.status !== "Retired");
 
-  const save = () => {
+  const save = async () => {
     if (!vehicleId) return toast.error("Select a vehicle.");
-    addMaintenance({ vehicleId, serviceType, cost, date, status: "Active" });
-    toast.success("Maintenance logged — vehicle set to In Shop.");
-    setVehicleId(""); setCost(0);
+    try {
+      await createMaintenance.mutateAsync({
+        vehicle_id: parseInt(vehicleId),
+        maintenance_type: serviceType,
+        cost,
+        scheduled_date: date,
+        status: "scheduled"
+      });
+      toast.success("Maintenance logged — vehicle set to In Shop.");
+      setVehicleId(""); setCost(0);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create maintenance");
+    }
   };
+
+  const closeMaintenanceRecord = async (id: string) => {
+    try {
+      await updateMaintenance.mutateAsync({
+        id: parseInt(id),
+        data: { status: "completed" }
+      });
+      toast.success("Maintenance closed.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to close maintenance");
+    }
+  };
+
+  // Error handling
+  if (maintenanceError || vehiclesError) {
+    return (
+      <div>
+        <PageHeader title="Maintenance" subtitle="Service logs & vehicle downtime" />
+        <Card className="mt-6 p-6">
+          <div className="flex items-center gap-3 text-destructive">
+            <AlertCircle className="h-5 w-5" />
+            <div>
+              <div className="font-semibold">Failed to load data</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                {maintenanceError?.message || vehiclesError?.message}
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // Loading state
+  if (maintenanceLoading || vehiclesLoading) {
+    return (
+      <div>
+        <PageHeader title="Maintenance" subtitle="Service logs & vehicle downtime" />
+        <div className="grid gap-6 lg:grid-cols-5">
+          <Skeleton className="h-[400px] lg:col-span-2" />
+          <Skeleton className="h-[400px] lg:col-span-3" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -63,7 +133,9 @@ function Maintenance() {
               <Field label="Cost (₹)"><Input type="number" value={cost} onChange={(e) => setCost(+e.target.value)} /></Field>
               <Field label="Date"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
             </div>
-            <Button className="w-full" onClick={save}>Save & Set In Shop</Button>
+            <Button className="w-full" onClick={save} disabled={createMaintenance.isPending}>
+              {createMaintenance.isPending ? "Saving..." : "Save & Set In Shop"}
+            </Button>
             <p className="text-xs text-muted-foreground">
               Adding an active maintenance record switches the vehicle to In Shop and hides it from dispatch. Closing it restores Available.
             </p>
@@ -95,7 +167,7 @@ function Maintenance() {
                     <td className="p-2"><StatusBadge status={m.status} /></td>
                     <td className="p-2">
                       {m.status === "Active" && (
-                        <Button size="sm" variant="secondary" onClick={() => { closeMaintenance(m.id); toast.success("Maintenance closed."); }}>
+                        <Button size="sm" variant="secondary" onClick={() => closeMaintenanceRecord(m.id)} disabled={updateMaintenance.isPending}>
                           Close
                         </Button>
                       )}

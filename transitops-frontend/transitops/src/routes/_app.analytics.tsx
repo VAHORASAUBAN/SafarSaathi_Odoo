@@ -1,9 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useStore } from "@/lib/store";
+import { useMemo } from "react";
+import { useVehicles } from "@/hooks/useVehicles";
+import { useTrips } from "@/hooks/useTrips";
+import { useFuelLogs } from "@/hooks/useFuel";
+import { useMaintenance } from "@/hooks/useMaintenance";
+import { useExpenses } from "@/hooks/useExpenses";
+import { mapApiVehiclesToFrontend, mapApiTripsToFrontend, mapApiFuelLogsToFrontend, mapApiMaintenanceToFrontend, mapApiExpensesToFrontend } from "@/lib/mappers";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Download, AlertCircle } from "lucide-react";
 import { inr, downloadCSV } from "@/lib/format";
 import {
   BarChart,
@@ -26,37 +33,86 @@ export const Route = createFileRoute("/_app/analytics")({
 const COLORS = ["oklch(0.72 0.16 55)", "oklch(0.66 0.13 235)", "oklch(0.68 0.15 150)", "oklch(0.78 0.14 75)"];
 
 function Analytics() {
-  const { vehicles, trips, fuelLogs, maintenance, expenses } = useStore();
+  // Fetch data from API
+  const { data: apiVehicles = [], isLoading: vehiclesLoading, error: vehiclesError } = useVehicles();
+  const { data: apiTrips = [], isLoading: tripsLoading, error: tripsError } = useTrips();
+  const { data: apiFuelLogs = [], isLoading: fuelLoading, error: fuelError } = useFuelLogs();
+  const { data: apiMaintenance = [], isLoading: maintenanceLoading, error: maintenanceError } = useMaintenance();
+  const { data: apiExpenses = [], isLoading: expensesLoading, error: expensesError } = useExpenses();
 
-  const totalFuelLiters = fuelLogs.reduce((s, f) => s + f.liters, 0);
-  const totalDistance = trips
+  // Map API data to frontend format
+  const vehicles = mapApiVehiclesToFrontend(apiVehicles);
+  const trips = mapApiTripsToFrontend(apiTrips);
+  const fuelLogs = mapApiFuelLogsToFrontend(apiFuelLogs);
+  const maintenance = mapApiMaintenanceToFrontend(apiMaintenance);
+  const expenses = mapApiExpensesToFrontend(apiExpenses);
+
+  const totalFuelLiters = useMemo(() => fuelLogs.reduce((s, f) => s + f.liters, 0), [fuelLogs]);
+  const totalDistance = useMemo(() => trips
     .filter((t) => t.status === "Completed")
-    .reduce((s, t) => s + t.plannedDistance, 0);
+    .reduce((s, t) => s + t.plannedDistance, 0), [trips]);
   const fuelEff = totalFuelLiters ? (totalDistance / totalFuelLiters).toFixed(1) : "—";
 
-  const onTrip = vehicles.filter((v) => v.status === "On Trip").length;
+  const onTrip = useMemo(() => vehicles.filter((v) => v.status === "On Trip").length, [vehicles]);
   const utilization = vehicles.length ? Math.round((onTrip / vehicles.length) * 100) : 0;
 
-  const totalOps =
+  const totalOps = useMemo(() =>
     fuelLogs.reduce((s, f) => s + f.cost, 0) +
     maintenance.reduce((s, m) => s + m.cost, 0) +
-    expenses.reduce((s, e) => s + e.amount, 0);
+    expenses.reduce((s, e) => s + e.amount, 0), [fuelLogs, maintenance, expenses]);
 
   // Per-vehicle cost & ROI
-  const perVehicle = vehicles.map((v) => {
+  const perVehicle = useMemo(() => vehicles.map((v) => {
     const fuel = fuelLogs.filter((f) => f.vehicleId === v.id).reduce((s, f) => s + f.cost, 0);
     const maint = maintenance.filter((m) => m.vehicleId === v.id).reduce((s, m) => s + m.cost, 0);
     const revenue = trips.filter((t) => t.vehicleId === v.id).reduce((s, t) => s + (t.revenue ?? 0), 0);
     const roi = v.acquisitionCost ? ((revenue - (maint + fuel)) / v.acquisitionCost) * 100 : 0;
     return { name: v.name, cost: fuel + maint, revenue, roi: +roi.toFixed(1) };
-  });
+  }), [vehicles, fuelLogs, maintenance, trips]);
 
   const avgRoi = perVehicle.length ? (perVehicle.reduce((s, p) => s + p.roi, 0) / perVehicle.length).toFixed(1) : "0";
 
-  const statusData = (["Available", "On Trip", "In Shop", "Retired"] as const).map((s) => ({
+  const statusData = useMemo(() => (["Available", "On Trip", "In Shop", "Retired"] as const).map((s) => ({
     name: s,
     value: vehicles.filter((v) => v.status === s).length,
-  }));
+  })), [vehicles]);
+
+  // Error handling
+  if (vehiclesError || tripsError || fuelError || maintenanceError || expensesError) {
+    return (
+      <div>
+        <PageHeader title="Reports & Analytics" subtitle="Fuel efficiency, utilization, cost & ROI" />
+        <Card className="mt-6 p-6">
+          <div className="flex items-center gap-3 text-destructive">
+            <AlertCircle className="h-5 w-5" />
+            <div>
+              <div className="font-semibold">Failed to load analytics data</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                {vehiclesError?.message || tripsError?.message || fuelError?.message || maintenanceError?.message || expensesError?.message}
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // Loading state
+  if (vehiclesLoading || tripsLoading || fuelLoading || maintenanceLoading || expensesLoading) {
+    return (
+      <div>
+        <PageHeader title="Reports & Analytics" subtitle="Fuel efficiency, utilization, cost & ROI" />
+        <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
+        </div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Skeleton className="h-[350px] lg:col-span-2" />
+          <Skeleton className="h-[350px]" />
+        </div>
+        <Skeleton className="mt-6 h-64" />
+      </div>
+    );
+  }
 
   return (
     <div>

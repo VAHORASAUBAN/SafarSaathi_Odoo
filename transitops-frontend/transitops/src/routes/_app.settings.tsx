@@ -1,12 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { useStore } from "@/lib/store";
 import { ROLE_ACCESS, type Role } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Check, X, RotateCcw } from "lucide-react";
+import { Check, X } from "lucide-react";
 
 export const Route = createFileRoute("/_app/settings")({
   component: Settings,
@@ -25,7 +22,6 @@ const ROLES: Role[] = ["Fleet Manager", "Dispatcher", "Safety Officer", "Financi
 
 function Settings() {
   const { user } = useAuth();
-  const { reset } = useStore();
 
   return (
     <div>
@@ -39,15 +35,6 @@ function Settings() {
             <Row label="Email" value={user?.email ?? "—"} />
             <Row label="Role" value={user?.role ?? "—"} />
           </dl>
-          <div className="mt-6">
-            <h4 className="mb-2 text-xs font-medium uppercase text-muted-foreground">Danger Zone</h4>
-            <Button
-              variant="outline"
-              onClick={() => { reset(); toast.success("Demo data reset."); }}
-            >
-              <RotateCcw className="mr-2 h-4 w-4" /> Reset demo data
-            </Button>
-          </div>
         </Card>
 
         <Card className="p-5 lg:col-span-2 overflow-x-auto">
