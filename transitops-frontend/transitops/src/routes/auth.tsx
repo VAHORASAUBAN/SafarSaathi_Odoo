@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useAuth, DEMO_USERS } from "@/lib/auth";
+import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Truck, ShieldAlert } from "lucide-react";
+import { Truck, ShieldAlert, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -17,21 +17,34 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (ready && user) navigate({ to: "/dashboard" });
   }, [ready, user, navigate]);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = login(email, password);
-    if (!res.ok) setError(res.error ?? "Login failed");
-    else navigate({ to: "/dashboard" });
+    setError("");
+    setLoading(true);
+    
+    try {
+      const res = await login(email, password);
+      if (!res.ok) {
+        setError(res.error ?? "Login failed");
+      } else {
+        navigate({ to: "/dashboard" });
+      }
+    } catch (err) {
+      setError("An unexpected error occurred");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const quickFill = (em: string) => {
+  const quickFill = (em: string, pass: string) => {
     setEmail(em);
-    setPassword("transitops");
+    setPassword(pass);
     setError("");
   };
 
@@ -83,26 +96,36 @@ function AuthPage() {
                 <ShieldAlert className="h-4 w-4" /> {error}
               </div>
             )}
-            <Button type="submit" className="w-full">Sign In</Button>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In"
+              )}
+            </Button>
           </form>
 
           <div className="mt-8">
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Demo accounts (one per role)
+              Quick Login (Backend Test Accounts)
             </p>
             <div className="grid gap-2">
-              {DEMO_USERS.map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => quickFill(u.email)}
-                  className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2 text-left text-sm hover:border-primary/50"
-                >
-                  <span>{u.role}</span>
-                  <span className="text-xs text-muted-foreground">{u.email}</span>
-                </button>
-              ))}
+              <button
+                onClick={() => quickFill("admin@transitops.com", "admin123")}
+                className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2 text-left text-sm hover:border-primary/50"
+              >
+                <span>Admin</span>
+                <span className="text-xs text-muted-foreground">admin@transitops.com</span>
+              </button>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">Password for all: <code>transitops</code></p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Default password: <code className="rounded bg-muted px-1">admin123</code>
+              <br />
+              <span className="text-xs">Make sure backend is running on http://localhost:8000</span>
+            </p>
           </div>
         </div>
       </div>
