@@ -1,35 +1,43 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Optional
-from .. import models, schemas, crud, auth
-from ..database import get_db
+from .. import models, schemas, auth
 
 router = APIRouter(prefix="/api/fuel", tags=["Fuel Logs"])
 
 
 @router.get("", response_model=List[schemas.FuelLogResponse])
-def get_fuel_logs(
+async def get_fuel_logs(
     skip: int = 0,
     limit: int = 100,
     vehicle_id: Optional[int] = None,
-    db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
     """Get all fuel logs with optional filters"""
-    logs = crud.get_fuel_logs(db, skip=skip, limit=limit, vehicle_id=vehicle_id)
+    query = models.FuelLog.find()
+    
+    if vehicle_id:
+        query = query.find(models.FuelLog.vehicle_id == vehicle_id)
+    
+    logs = await query.skip(skip).limit(limit).to_list()
     return logs
 
 
 @router.post("", response_model=schemas.FuelLogResponse)
-def create_fuel_log(
+async def create_fuel_log(
     fuel_log: schemas.FuelLogCreate,
-    db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
     """Create a new fuel log"""
     auth.check_permission(current_user, [
-        models.UserRole.DRIVER,
+        models.UserRole.DISPATCHER,
         models.UserRole.FLEET_MANAGER,
         models.UserRole.FINANCIAL_ANALYST
     ])
-    return crud.create_fuel_log(db, fuel_log)
+    
+    vehicle = await models.Vehicle.find_one(models.Vehicle.id == fuel_log.vehicle_id)
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    
+    db_fuel_log = models.FuelLog(**fuel_log.model_dump())
+    await db_fuel_log.insert()
+    return db_fuel_log
