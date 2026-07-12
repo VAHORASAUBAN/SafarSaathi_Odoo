@@ -1,13 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
-import { useStore } from "@/lib/store";
+import { useFuelLogs, useCreateFuelLog } from "@/hooks/useFuel";
+import { useExpenses, useCreateExpense } from "@/hooks/useExpenses";
+import { useMaintenance } from "@/hooks/useMaintenance";
+import { useVehicles } from "@/hooks/useVehicles";
+import { mapApiFuelLogsToFrontend, mapApiExpensesToFrontend, mapApiMaintenanceToFrontend, mapApiVehiclesToFrontend } from "@/lib/mappers";
 import type { Expense } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -23,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Fuel, Plus, Download } from "lucide-react";
+import { Fuel, Plus, Download, AlertCircle } from "lucide-react";
 import { inr, downloadCSV } from "@/lib/format";
 
 export const Route = createFileRoute("/_app/expenses")({
@@ -31,7 +36,22 @@ export const Route = createFileRoute("/_app/expenses")({
 });
 
 function Expenses() {
-  const { vehicles, fuelLogs, expenses, maintenance, addFuelLog, addExpense } = useStore();
+  // Fetch data from API
+  const { data: apiFuelLogs = [], isLoading: fuelLoading, error: fuelError } = useFuelLogs();
+  const { data: apiExpenses = [], isLoading: expensesLoading, error: expensesError } = useExpenses();
+  const { data: apiMaintenance = [], isLoading: maintenanceLoading, error: maintenanceError } = useMaintenance();
+  const { data: apiVehicles = [], isLoading: vehiclesLoading, error: vehiclesError } = useVehicles();
+  
+  // Map API data to frontend format
+  const fuelLogs = mapApiFuelLogsToFrontend(apiFuelLogs);
+  const expenses = mapApiExpensesToFrontend(apiExpenses);
+  const maintenance = mapApiMaintenanceToFrontend(apiMaintenance);
+  const vehicles = mapApiVehiclesToFrontend(apiVehicles);
+
+  // Mutations
+  const createFuelLog = useCreateFuelLog();
+  const createExpense = useCreateExpense();
+
   const today = new Date().toISOString().slice(0, 10);
 
   const [fuelOpen, setFuelOpen] = useState(false);
@@ -40,27 +60,82 @@ function Expenses() {
   const [expOpen, setExpOpen] = useState(false);
   const [exp, setExp] = useState<Omit<Expense, "id">>({ vehicleId: "", tripId: null, category: "Toll", amount: 0, date: today });
 
-  const totalFuel = fuelLogs.reduce((s, f) => s + f.cost, 0);
-  const totalMaint = maintenance.reduce((s, m) => s + m.cost, 0);
-  const totalOther = expenses.reduce((s, e) => s + e.amount, 0);
+  const totalFuel = useMemo(() => fuelLogs.reduce((s, f) => s + f.cost, 0), [fuelLogs]);
+  const totalMaint = useMemo(() => maintenance.reduce((s, m) => s + m.cost, 0), [maintenance]);
+  const totalOther = useMemo(() => expenses.reduce((s, e) => s + e.amount, 0), [expenses]);
   const totalOps = totalFuel + totalMaint + totalOther;
 
-  const saveFuel = () => {
+  const saveFuel = async () => {
     if (!fuel.vehicleId || fuel.liters <= 0) return toast.error("Select vehicle and enter liters.");
-    addFuelLog(fuel);
-    toast.success("Fuel log added.");
-    setFuel({ vehicleId: "", liters: 0, cost: 0, date: today });
-    setFuelOpen(false);
+    try {
+      await createFuelLog.mutateAsync({
+        vehicle_id: parseInt(fuel.vehicleId),
+        liters: fuel.liters,
+        cost: fuel.cost,
+        fuel_date: fuel.date,
+      });
+      toast.success("Fuel log added.");
+      setFuel({ vehicleId: "", liters: 0, cost: 0, date: today });
+      setFuelOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add fuel log");
+    }
   };
-  const saveExp = () => {
+
+  const saveExp = async () => {
     if (!exp.vehicleId || exp.amount <= 0) return toast.error("Select vehicle and enter amount.");
-    addExpense(exp);
-    toast.success("Expense added.");
-    setExp({ vehicleId: "", tripId: null, category: "Toll", amount: 0, date: today });
-    setExpOpen(false);
+    try {
+      await createExpense.mutateAsync({
+        vehicle_id: parseInt(exp.vehicleId),
+        expense_type: exp.category.toLowerCase(),
+        amount: exp.amount,
+        expense_date: exp.date,
+      });
+      toast.success("Expense added.");
+      setExp({ vehicleId: "", tripId: null, category: "Toll", amount: 0, date: today });
+      setExpOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add expense");
+    }
   };
 
   const vName = (id: string) => vehicles.find((v) => v.id === id)?.name ?? "—";
+
+  // Error handling
+  if (fuelError || expensesError || maintenanceError || vehiclesError) {
+    return (
+      <div>
+        <PageHeader title="Fuel & Expense Management" subtitle="Fuel logs, tolls and operational cost" />
+        <Card className="mt-6 p-6">
+          <div className="flex items-center gap-3 text-destructive">
+            <AlertCircle className="h-5 w-5" />
+            <div>
+              <div className="font-semibold">Failed to load data</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                {fuelError?.message || expensesError?.message || maintenanceError?.message || vehiclesError?.message}
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // Loading state
+  if (fuelLoading || expensesLoading || maintenanceLoading || vehiclesLoading) {
+    return (
+      <div>
+        <PageHeader title="Fuel & Expense Management" subtitle="Fuel logs, tolls and operational cost" />
+        <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Skeleton className="h-[400px]" />
+          <Skeleton className="h-[400px]" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -100,7 +175,9 @@ function Expenses() {
                   <Field label="Liters"><Input type="number" value={fuel.liters} onChange={(e) => setFuel({ ...fuel, liters: +e.target.value })} /></Field>
                   <Field label="Cost (₹)"><Input type="number" value={fuel.cost} onChange={(e) => setFuel({ ...fuel, cost: +e.target.value })} /></Field>
                 </div>
-                <DialogFooter><Button onClick={saveFuel}>Save</Button></DialogFooter>
+                <DialogFooter><Button onClick={saveFuel} disabled={createFuelLog.isPending}>
+                  {createFuelLog.isPending ? "Saving..." : "Save"}
+                </Button></DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
@@ -146,7 +223,9 @@ function Expenses() {
                   <Field label="Amount (₹)"><Input type="number" value={exp.amount} onChange={(e) => setExp({ ...exp, amount: +e.target.value })} /></Field>
                   <Field label="Date"><Input type="date" value={exp.date} onChange={(e) => setExp({ ...exp, date: e.target.value })} /></Field>
                 </div>
-                <DialogFooter><Button onClick={saveExp}>Save</Button></DialogFooter>
+                <DialogFooter><Button onClick={saveExp} disabled={createExpense.isPending}>
+                  {createExpense.isPending ? "Saving..." : "Save"}
+                </Button></DialogFooter>
               </DialogContent>
             </Dialog>
           </div>

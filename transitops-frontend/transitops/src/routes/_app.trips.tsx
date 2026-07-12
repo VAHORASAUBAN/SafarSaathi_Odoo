@@ -1,13 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useStore } from "@/lib/store";
+import { useTrips, useCreateTrip, useDispatchTrip, useCompleteTrip, useCancelTrip } from "@/hooks/useTrips";
+import { useVehicles } from "@/hooks/useVehicles";
+import { useDrivers } from "@/hooks/useDrivers";
+import { mapApiTripsToFrontend, mapApiVehiclesToFrontend, mapApiDriversToFrontend } from "@/lib/mappers";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Send, CheckCircle2, XCircle } from "lucide-react";
+import { Plus, Send, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { isLicenseExpired } from "@/lib/format";
 
 export const Route = createFileRoute("/_app/trips")({
@@ -30,8 +34,21 @@ export const Route = createFileRoute("/_app/trips")({
 });
 
 function Trips() {
-  const store = useStore();
-  const { vehicles, drivers, trips, createTrip, dispatchTrip, cancelTrip, completeTrip } = store;
+  // Fetch data from API
+  const { data: apiTrips = [], isLoading: tripsLoading, error: tripsError } = useTrips();
+  const { data: apiVehicles = [], isLoading: vehiclesLoading, error: vehiclesError } = useVehicles();
+  const { data: apiDrivers = [], isLoading: driversLoading, error: driversError } = useDrivers();
+  
+  // Map API data to frontend format
+  const trips = mapApiTripsToFrontend(apiTrips);
+  const vehicles = mapApiVehiclesToFrontend(apiVehicles);
+  const drivers = mapApiDriversToFrontend(apiDrivers);
+
+  // Mutations
+  const createTrip = useCreateTrip();
+  const dispatchTrip = useDispatchTrip();
+  const completeTrip = useCompleteTrip();
+  const cancelTrip = useCancelTrip();
 
   const [source, setSource] = useState("");
   const [destination, setDestination] = useState("");
@@ -51,25 +68,98 @@ function Trips() {
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
   const overCapacity = selectedVehicle ? cargoWeight > selectedVehicle.capacity : false;
 
-  const submit = () => {
-    const res = createTrip({ source, destination, vehicleId, driverId, cargoWeight, plannedDistance });
-    if (!res.ok) return toast.error(res.error);
-    toast.success("Trip created as Draft.");
-    setSource(""); setDestination(""); setVehicleId(""); setDriverId(""); setCargoWeight(0); setPlannedDistance(0);
+  const submit = async () => {
+    if (!source || !destination) return toast.error("Source and destination are required");
+    if (!vehicleId || !driverId) return toast.error("Vehicle and driver are required");
+    if (overCapacity) return toast.error("Cargo exceeds vehicle capacity");
+    
+    try {
+      await createTrip.mutateAsync({
+        vehicle_id: parseInt(vehicleId),
+        driver_id: parseInt(driverId),
+        source,
+        destination,
+        cargo_weight: cargoWeight,
+        planned_distance: plannedDistance,
+      });
+      toast.success("Trip created as Draft.");
+      setSource(""); setDestination(""); setVehicleId(""); setDriverId(""); setCargoWeight(0); setPlannedDistance(0);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create trip");
+    }
   };
 
-  const doDispatch = (id: string) => {
-    const res = dispatchTrip(id);
-    if (!res.ok) return toast.error(res.error);
-    toast.success("Trip dispatched — vehicle & driver now On Trip.");
+  const doDispatch = async (id: string) => {
+    try {
+      await dispatchTrip.mutateAsync({
+        id: parseInt(id),
+        data: { dispatch_time: new Date().toISOString() }
+      });
+      toast.success("Trip dispatched — vehicle & driver now On Trip.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to dispatch trip");
+    }
   };
 
-  const doComplete = () => {
+  const doComplete = async () => {
     if (!completeFor) return;
-    completeTrip(completeFor, finalOdo, fuel);
-    toast.success("Trip completed — vehicle & driver back to Available.");
-    setCompleteFor(null); setFinalOdo(0); setFuel(0);
+    try {
+      await completeTrip.mutateAsync({
+        id: parseInt(completeFor),
+        data: {
+          end_odometer: finalOdo,
+          fuel_consumed: fuel,
+          completion_time: new Date().toISOString()
+        }
+      });
+      toast.success("Trip completed — vehicle & driver back to Available.");
+      setCompleteFor(null); setFinalOdo(0); setFuel(0);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to complete trip");
+    }
   };
+
+  const doCancel = async (id: string) => {
+    try {
+      await cancelTrip.mutateAsync(parseInt(id));
+      toast.success("Trip cancelled.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to cancel trip");
+    }
+  };
+
+  // Error handling
+  if (tripsError || vehiclesError || driversError) {
+    return (
+      <div>
+        <PageHeader title="Trip Dispatcher" subtitle="Create, dispatch and track trips with validations" />
+        <Card className="mt-6 p-6">
+          <div className="flex items-center gap-3 text-destructive">
+            <AlertCircle className="h-5 w-5" />
+            <div>
+              <div className="font-semibold">Failed to load data</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                {tripsError?.message || vehiclesError?.message || driversError?.message}
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // Loading state
+  if (tripsLoading || vehiclesLoading || driversLoading) {
+    return (
+      <div>
+        <PageHeader title="Trip Dispatcher" subtitle="Create, dispatch and track trips with validations" />
+        <div className="grid gap-6 lg:grid-cols-5">
+          <Skeleton className="h-[500px] lg:col-span-2" />
+          <Skeleton className="h-[500px] lg:col-span-3" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -117,7 +207,9 @@ function Trips() {
               </div>
             )}
 
-            <Button className="w-full" onClick={submit}><Plus className="mr-2 h-4 w-4" /> Create Trip</Button>
+            <Button className="w-full" onClick={submit} disabled={createTrip.isPending}>
+              {createTrip.isPending ? "Creating..." : <><Plus className="mr-2 h-4 w-4" /> Create Trip</>}
+            </Button>
           </div>
         </Card>
 
@@ -142,15 +234,17 @@ function Trips() {
                     </div>
                     <div className="flex flex-col gap-2">
                       {t.status === "Draft" && (
-                        <Button size="sm" onClick={() => doDispatch(t.id)}><Send className="mr-1.5 h-3.5 w-3.5" /> Dispatch</Button>
+                        <Button size="sm" onClick={() => doDispatch(t.id)} disabled={dispatchTrip.isPending}>
+                          <Send className="mr-1.5 h-3.5 w-3.5" /> Dispatch
+                        </Button>
                       )}
                       {t.status === "Dispatched" && (
-                        <Button size="sm" variant="secondary" onClick={() => { setCompleteFor(t.id); setFinalOdo(v?.odometer ?? 0); }}>
+                        <Button size="sm" variant="secondary" onClick={() => { setCompleteFor(t.id); setFinalOdo(v?.odometer ?? 0); }} disabled={completeTrip.isPending}>
                           <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Complete
                         </Button>
                       )}
                       {(t.status === "Draft" || t.status === "Dispatched") && (
-                        <Button size="sm" variant="ghost" onClick={() => cancelTrip(t.id)}>
+                        <Button size="sm" variant="ghost" onClick={() => doCancel(t.id)} disabled={cancelTrip.isPending}>
                           <XCircle className="mr-1.5 h-3.5 w-3.5" /> Cancel
                         </Button>
                       )}
@@ -174,7 +268,9 @@ function Trips() {
             <Field label="Final Odometer (km)"><Input type="number" value={finalOdo} onChange={(e) => setFinalOdo(+e.target.value)} /></Field>
             <Field label="Fuel Consumed (L)"><Input type="number" value={fuel} onChange={(e) => setFuel(+e.target.value)} /></Field>
           </div>
-          <DialogFooter><Button onClick={doComplete}>Confirm Completion</Button></DialogFooter>
+          <DialogFooter><Button onClick={doComplete} disabled={completeTrip.isPending}>
+            {completeTrip.isPending ? "Completing..." : "Confirm Completion"}
+          </Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
