@@ -6,9 +6,10 @@ from .models import UserRole, VehicleStatus, DriverStatus, TripStatus, Maintenan
 
 # User Schemas
 class UserBase(BaseModel):
+    username: str
     email: EmailStr
     full_name: str
-    role: UserRole
+    role: UserRole = UserRole.DRIVER
 
 
 class UserCreate(UserBase):
@@ -16,7 +17,7 @@ class UserCreate(UserBase):
 
 
 class UserResponse(UserBase):
-    id: int
+    id: str  # MongoDB ObjectId as string
     is_active: bool
     created_at: datetime
     
@@ -25,7 +26,7 @@ class UserResponse(UserBase):
 
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    username: str  # Changed from email to username
     password: str
 
 

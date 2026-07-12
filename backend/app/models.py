@@ -8,6 +8,7 @@ from enum import Enum
 class UserRole(str, Enum):
     FLEET_MANAGER = "fleet_manager"
     DRIVER = "driver"
+    DISPATCHER = "dispatcher"
     SAFETY_OFFICER = "safety_officer"
     FINANCIAL_ANALYST = "financial_analyst"
     ADMIN = "admin"
@@ -42,16 +43,17 @@ class MaintenanceStatus(str, Enum):
 
 
 class User(Document):
+    username: str = Field(..., unique=True)
     email: EmailStr = Field(..., unique=True)
     hashed_password: str
     full_name: str
-    role: UserRole
+    role: UserRole = UserRole.DRIVER  # Default role
     is_active: bool = True
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     class Settings:
-        name = "users"
-        indexes = ["email"]
+        name = "User"
+        indexes = ["email", "username"]
 
 
 class Vehicle(Document):

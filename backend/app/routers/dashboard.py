@@ -1,202 +1,107 @@
-from fastapi import APIRouter, Depends, Response
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends
 from typing import List
-from .. import models, schemas, crud, auth
-from ..database import get_db
-import csv
-import io
+from .. import models, schemas, auth
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 
 
 @router.get("/kpis", response_model=schemas.DashboardKPIs)
-def get_dashboard_kpis(
-    db: Session = Depends(get_db),
+async def get_dashboard_kpis(
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
     """Get dashboard KPIs"""
-    return crud.get_dashboard_kpis(db)
-
-
-@router.get("/analytics", response_model=schemas.FleetAnalytics)
-def get_fleet_analytics(
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_active_user)
-):
-    """Get fleet-wide analytics"""
-    return crud.get_fleet_analytics(db)
-
-
-@router.get("/analytics/export")
-def export_analytics_csv(
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_active_user)
-):
-    """Export fleet analytics to CSV"""
-    auth.check_permission(current_user, [
-        models.UserRole.FLEET_MANAGER,
-        models.UserRole.FINANCIAL_ANALYST
-    ])
+    # Count vehicles by status
+    active_vehicles_count = await models.Vehicle.find(
+        models.Vehicle.status.in_([models.VehicleStatus.AVAILABLE, models.VehicleStatus.ON_TRIP])
+    ).count()
     
-    from sqlalchemy import func
+    available_vehicles_count = await models.Vehicle.find(
+        models.Vehicle.status == models.VehicleStatus.AVAILABLE
+    ).count()
     
-    # Get all vehicles
-    vehicles = db.query(models.Vehicle).all()
+    vehicles_in_maintenance_count = await models.Vehicle.find(
+        models.Vehicle.status == models.VehicleStatus.IN_SHOP
+    ).count()
     
-    # Create CSV in memory
-    output = io.StringIO()
-    writer = csv.writer(output)
+    # Count trips by status
+    active_trips_count = await models.Trip.find(
+        models.Trip.status == models.TripStatus.DISPATCHED
+    ).count()
     
-    # Write headers
-    writer.writerow([
-        'Vehicle ID',
-        'Registration Number',
-        'Vehicle Name',
-        'Type',
-        'Status',
-        'Region',
-        'Max Capacity (kg)',
-        'Current Odometer (km)',
-        'Acquisition Cost',
-        'Total Distance (km)',
-        'Total Trips',
-        'Completed Trips',
-        'Active Trips',
-        'Fuel Efficiency (km/L)',
-        'Total Fuel Cost',
-        'Total Maintenance Cost',
-        'Total Expenses',
-        'Total Operational Cost',
-        'Vehicle ROI (%)'
-    ])
+    pending_trips_count = await models.Trip.find(
+        models.Trip.status == models.TripStatus.DRAFT
+    ).count()
     
-    # Write data for each vehicle
-    for vehicle in vehicles:
-        # Get analytics
-        analytics = crud.get_vehicle_analytics(db, vehicle.id)
-        
-        # Calculate total distance
-        total_distance = db.query(func.sum(models.Trip.actual_distance)).filter(
-            models.Trip.vehicle_id == vehicle.id,
-            models.Trip.status == models.TripStatus.COMPLETED
-        ).scalar() or 0.0
-        
-        # Count trips
-        total_trips = db.query(models.Trip).filter(
-            models.Trip.vehicle_id == vehicle.id
-        ).count()
-        
-        completed_trips = db.query(models.Trip).filter(
-            models.Trip.vehicle_id == vehicle.id,
-            models.Trip.status == models.TripStatus.COMPLETED
-        ).count()
-        
-        active_trips = db.query(models.Trip).filter(
-            models.Trip.vehicle_id == vehicle.id,
-            models.Trip.status == models.TripStatus.DISPATCHED
-        ).count()
-        
-        # Get total other expenses
-        total_expenses = db.query(func.sum(models.Expense.amount)).filter(
-            models.Expense.vehicle_id == vehicle.id
-        ).scalar() or 0.0
-        
-        writer.writerow([
-            vehicle.id,
-            vehicle.registration_number,
-            vehicle.vehicle_name,
-            vehicle.vehicle_type,
-            vehicle.status.value,
-            vehicle.region or 'N/A',
-            vehicle.max_load_capacity,
-            round(vehicle.odometer, 2),
-            vehicle.acquisition_cost,
-            round(total_distance, 2),
-            total_trips,
-            completed_trips,
-            active_trips,
-            round(analytics.fuel_efficiency, 2) if analytics.fuel_efficiency else 'N/A',
-            round(analytics.total_fuel_cost, 2),
-            round(analytics.total_maintenance_cost, 2),
-            round(total_expenses, 2),
-            round(analytics.total_operational_cost, 2),
-            round(analytics.vehicle_roi, 2) if analytics.vehicle_roi else 'N/A'
-        ])
+    # Count drivers on duty
+    drivers_on_duty_count = await models.Driver.find(
+        models.Driver.status.in_([models.DriverStatus.AVAILABLE, models.DriverStatus.ON_TRIP])
+    ).count()
     
-    # Return CSV response
-    return Response(
-        content=output.getvalue(),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=fleet_analytics.csv"}
+    # Calculate fleet utilization
+    total_vehicles = await models.Vehicle.find(
+        models.Vehicle.status != models.VehicleStatus.RETIRED
+    ).count()
+    
+    vehicles_in_use = await models.Vehicle.find(
+        models.Vehicle.status == models.VehicleStatus.ON_TRIP
+    ).count()
+    
+    fleet_utilization = (vehicles_in_use / total_vehicles * 100) if total_vehicles > 0 else 0.0
+    
+    return schemas.DashboardKPIs(
+        active_vehicles=active_vehicles_count,
+        available_vehicles=available_vehicles_count,
+        vehicles_in_maintenance=vehicles_in_maintenance_count,
+        active_trips=active_trips_count,
+        pending_trips=pending_trips_count,
+        drivers_on_duty=drivers_on_duty_count,
+        fleet_utilization=round(fleet_utilization, 2)
     )
 
 
-@router.get("/analytics/trips/export")
-def export_trips_csv(
-    db: Session = Depends(get_db),
+@router.get("/analytics", response_model=schemas.FleetAnalytics)
+async def get_fleet_analytics(
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
-    """Export all trips to CSV"""
-    auth.check_permission(current_user, [
-        models.UserRole.FLEET_MANAGER,
-        models.UserRole.FINANCIAL_ANALYST
-    ])
+    """Get fleet-wide analytics"""
+    # Get all completed trips
+    completed_trips = await models.Trip.find(
+        models.Trip.status == models.TripStatus.COMPLETED
+    ).to_list()
     
-    # Get all trips
-    trips = db.query(models.Trip).all()
+    total_distance = sum(trip.actual_distance or 0 for trip in completed_trips)
     
-    # Create CSV in memory
-    output = io.StringIO()
-    writer = csv.writer(output)
+    # Get all fuel logs
+    fuel_logs = await models.FuelLog.find().to_list()
+    total_fuel_liters = sum(log.liters for log in fuel_logs)
+    total_fuel_cost = sum(log.cost for log in fuel_logs)
     
-    # Write headers
-    writer.writerow([
-        'Trip ID',
-        'Vehicle Reg Number',
-        'Driver Name',
-        'Source',
-        'Destination',
-        'Status',
-        'Cargo Weight (kg)',
-        'Planned Distance (km)',
-        'Actual Distance (km)',
-        'Fuel Consumed (L)',
-        'Fuel Efficiency (km/L)',
-        'Start Odometer',
-        'End Odometer',
-        'Dispatch Time',
-        'Completion Time',
-        'Created At'
-    ])
+    # Calculate average fuel efficiency
+    average_fuel_efficiency = (total_distance / total_fuel_liters) if total_fuel_liters > 0 else 0.0
     
-    # Write data for each trip
-    for trip in trips:
-        fuel_efficiency = (trip.actual_distance / trip.fuel_consumed) if trip.fuel_consumed and trip.actual_distance else 'N/A'
-        if isinstance(fuel_efficiency, float):
-            fuel_efficiency = round(fuel_efficiency, 2)
-        
-        writer.writerow([
-            trip.id,
-            trip.vehicle.registration_number,
-            trip.driver.name,
-            trip.source,
-            trip.destination,
-            trip.status.value,
-            trip.cargo_weight,
-            trip.planned_distance,
-            trip.actual_distance or 'N/A',
-            trip.fuel_consumed or 'N/A',
-            fuel_efficiency,
-            trip.start_odometer or 'N/A',
-            trip.end_odometer or 'N/A',
-            trip.dispatch_time or 'N/A',
-            trip.completion_time or 'N/A',
-            trip.created_at
-        ])
+    # Get maintenance and expenses
+    maintenance_logs = await models.MaintenanceLog.find().to_list()
+    total_maintenance_cost = sum(log.cost for log in maintenance_logs)
     
-    # Return CSV response
-    return Response(
-        content=output.getvalue(),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=trips_export.csv"}
+    expenses = await models.Expense.find().to_list()
+    total_expenses = sum(exp.amount for exp in expenses)
+    
+    total_operational_cost = total_fuel_cost + total_maintenance_cost + total_expenses
+    
+    # Fleet utilization
+    total_vehicles = await models.Vehicle.find(
+        models.Vehicle.status != models.VehicleStatus.RETIRED
+    ).count()
+    
+    vehicles_in_use = await models.Vehicle.find(
+        models.Vehicle.status == models.VehicleStatus.ON_TRIP
+    ).count()
+    
+    fleet_utilization = (vehicles_in_use / total_vehicles * 100) if total_vehicles > 0 else 0.0
+    
+    return schemas.FleetAnalytics(
+        total_distance_covered=round(total_distance, 2),
+        average_fuel_efficiency=round(average_fuel_efficiency, 2),
+        total_operational_cost=round(total_operational_cost, 2),
+        fleet_utilization=round(fleet_utilization, 2)
     )

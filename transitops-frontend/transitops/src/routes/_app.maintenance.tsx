@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tantml:parameter>
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useMaintenance, useCreateMaintenance, useUpdateMaintenance } from "@/hooks/useMaintenance";

@@ -9,34 +9,47 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  Shield,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { ROLE_ACCESS } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import type { ReactNode } from "react";
+import type { UserRole } from "@/lib/types";
 
 const NAV = [
-  { key: "dashboard", to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { key: "fleet", to: "/fleet", label: "Vehicle Registry", icon: Truck },
-  { key: "drivers", to: "/drivers", label: "Drivers", icon: Users },
-  { key: "trips", to: "/trips", label: "Trip Dispatcher", icon: RouteIcon },
-  { key: "maintenance", to: "/maintenance", label: "Maintenance", icon: Wrench },
-  { key: "expenses", to: "/expenses", label: "Fuel & Expenses", icon: Receipt },
-  { key: "analytics", to: "/analytics", label: "Reports & Analytics", icon: BarChart3 },
-  { key: "settings", to: "/settings", label: "Settings & RBAC", icon: Settings },
+  { key: "dashboard", to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ['admin', 'fleet_manager', 'dispatcher', 'driver', 'safety_officer', 'financial_analyst'] as UserRole[] },
+  { key: "fleet", to: "/fleet", label: "Vehicle Registry", icon: Truck, roles: ['admin', 'fleet_manager', 'dispatcher', 'driver', 'safety_officer', 'financial_analyst'] as UserRole[] },
+  { key: "drivers", to: "/drivers", label: "Drivers", icon: Users, roles: ['admin', 'fleet_manager', 'dispatcher', 'safety_officer'] as UserRole[] },
+  { key: "trips", to: "/trips", label: "Trip Dispatcher", icon: RouteIcon, roles: ['admin', 'fleet_manager', 'dispatcher', 'driver', 'safety_officer', 'financial_analyst'] as UserRole[] },
+  { key: "maintenance", to: "/maintenance", label: "Maintenance", icon: Wrench, roles: ['admin', 'fleet_manager', 'safety_officer', 'financial_analyst'] as UserRole[] },
+  { key: "expenses", to: "/expenses", label: "Fuel & Expenses", icon: Receipt, roles: ['admin', 'fleet_manager', 'financial_analyst'] as UserRole[] },
+  { key: "analytics", to: "/analytics", label: "Reports & Analytics", icon: BarChart3, roles: ['admin', 'fleet_manager', 'safety_officer', 'financial_analyst'] as UserRole[] },
+  { key: "settings", to: "/settings", label: "Settings", icon: Settings, roles: ['admin', 'fleet_manager', 'dispatcher', 'driver', 'safety_officer', 'financial_analyst'] as UserRole[] },
 ] as const;
 
+// Role display labels
+const ROLE_LABELS: Record<UserRole, { label: string; color: string }> = {
+  admin: { label: "Admin", color: "bg-red-500" },
+  fleet_manager: { label: "Fleet Manager", color: "bg-blue-500" },
+  dispatcher: { label: "Dispatcher", color: "bg-green-500" },
+  driver: { label: "Driver", color: "bg-yellow-500" },
+  safety_officer: { label: "Safety Officer", color: "bg-purple-500" },
+  financial_analyst: { label: "Financial Analyst", color: "bg-orange-500" },
+};
+
 export function AppLayout({ children }: { children: ReactNode }) {
-  const { user, logout } = useAuth();
+  const { user, logout, hasRole } = useAuth();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const allowed = user ? ROLE_ACCESS[user.role] : [];
 
   const handleLogout = () => {
     logout();
     navigate({ to: "/auth" });
   };
+
+  const roleInfo = user ? ROLE_LABELS[user.role] : null;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -51,7 +64,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </div>
         <nav className="flex-1 space-y-1 px-3 py-2">
-          {NAV.filter((n) => allowed.includes(n.key)).map((n) => {
+          {NAV.filter((n) => user && n.roles.includes(user.role)).map((n) => {
             const active = pathname.startsWith(n.to);
             return (
               <Link
@@ -73,7 +86,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <div className="border-t border-sidebar-border p-3">
           <div className="mb-2 px-2">
             <div className="text-sm font-medium text-sidebar-foreground">{user?.name}</div>
-            <div className="text-xs text-primary">{user?.role}</div>
+            <div className="text-xs text-muted-foreground">{user?.email}</div>
+            {roleInfo && (
+              <div className="mt-1 flex items-center gap-1">
+                <Shield className="h-3 w-3 text-muted-foreground" />
+                <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full text-white", roleInfo.color)}>
+                  {roleInfo.label}
+                </span>
+              </div>
+            )}
           </div>
           <Button variant="ghost" size="sm" className="w-full justify-start" onClick={handleLogout}>
             <LogOut className="mr-2 h-4 w-4" /> Sign out
@@ -86,6 +107,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <div className="text-sm text-muted-foreground md:hidden font-semibold">TransitOps</div>
           <div className="ml-auto flex items-center gap-3">
             <span className="hidden text-sm text-muted-foreground sm:inline">{user?.email}</span>
+            {roleInfo && (
+              <Badge variant="outline" className="hidden sm:inline-flex">
+                <Shield className="mr-1 h-3 w-3" />
+                {roleInfo.label}
+              </Badge>
+            )}
             <div className="grid h-8 w-8 place-items-center rounded-full bg-primary/20 text-sm font-semibold text-primary">
               {user?.name?.[0]}
             </div>

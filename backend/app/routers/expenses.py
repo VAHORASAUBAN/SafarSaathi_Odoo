@@ -1,38 +1,46 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Optional
-from .. import models, schemas, crud, auth
-from ..database import get_db
+from .. import models, schemas, auth
 
 router = APIRouter(prefix="/api/expenses", tags=["Expenses"])
 
 
 @router.get("", response_model=List[schemas.ExpenseResponse])
-def get_expenses(
+async def get_expenses(
     skip: int = 0,
     limit: int = 100,
     vehicle_id: Optional[int] = None,
     expense_type: Optional[str] = None,
-    db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
     """Get all expenses with optional filters"""
-    expenses = crud.get_expenses(
-        db, skip=skip, limit=limit, vehicle_id=vehicle_id, expense_type=expense_type
-    )
+    query = models.Expense.find()
+    
+    if vehicle_id:
+        query = query.find(models.Expense.vehicle_id == vehicle_id)
+    if expense_type:
+        query = query.find(models.Expense.expense_type == expense_type)
+    
+    expenses = await query.skip(skip).limit(limit).to_list()
     return expenses
 
 
 @router.post("", response_model=schemas.ExpenseResponse)
-def create_expense(
+async def create_expense(
     expense: schemas.ExpenseCreate,
-    db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
     """Create a new expense"""
     auth.check_permission(current_user, [
-        models.UserRole.DRIVER,
+        models.UserRole.DISPATCHER,
         models.UserRole.FLEET_MANAGER,
         models.UserRole.FINANCIAL_ANALYST
     ])
-    return crud.create_expense(db, expense)
+    
+    vehicle = await models.Vehicle.find_one(models.Expense.vehicle_id == expense.vehicle_id)
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    
+    db_expense = models.Expense(**expense.model_dump())
+    await db_expense.insert()
+    return db_expense
