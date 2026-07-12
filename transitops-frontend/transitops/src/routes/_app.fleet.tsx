@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth";
+import { RoleGuard } from "@/components/RoleGuard";
 import { useVehicles, useCreateVehicle, useUpdateVehicle, useDeleteVehicle } from "@/hooks/useVehicles";
 import { mapApiVehiclesToFrontend, mapFrontendVehicleToApi } from "@/lib/mappers";
 import type { Vehicle, VehicleStatus } from "@/lib/types";
@@ -130,10 +132,11 @@ function Fleet() {
             <Button variant="outline" onClick={() => downloadCSV("vehicles.csv", filtered as unknown as Record<string, unknown>[])}>
               <Download className="mr-2 h-4 w-4" /> CSV
             </Button>
-            <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger asChild>
-                <Button><Plus className="mr-2 h-4 w-4" /> Add Vehicle</Button>
-              </DialogTrigger>
+            <RoleGuard resource="vehicles" action="create">
+              <Dialog open={open} onOpenChange={setOpen}>
+                <DialogTrigger asChild>
+                  <Button><Plus className="mr-2 h-4 w-4" /> Add Vehicle</Button>
+                </DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Register Vehicle</DialogTitle></DialogHeader>
                 <div className="grid grid-cols-2 gap-4">
@@ -166,6 +169,7 @@ function Fleet() {
                 </Button></DialogFooter>
               </DialogContent>
             </Dialog>
+            </RoleGuard>
           </>
         }
       />
@@ -205,9 +209,11 @@ function Fleet() {
                   </Select>
                 </td>
                 <td className="p-3">
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(v.id)} disabled={deleteVehicle.isPending}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <RoleGuard resource="vehicles" action="delete">
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(v.id)} disabled={deleteVehicle.isPending}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </RoleGuard>
                 </td>
               </tr>
             ))}

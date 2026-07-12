@@ -35,9 +35,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
-async def authenticate_user(email: str, password: str):
-    """Authenticate a user by email and password"""
-    user = await models.User.find_one(models.User.email == email)
+async def authenticate_user(username: str, password: str):
+    """Authenticate a user by username and password"""
+    user = await models.User.find_one(models.User.username == username)
     if not user:
         return False
     if not verify_password(password, user.hashed_password):
@@ -54,13 +54,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> models.User:
     )
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
+        username: str = payload.get("sub")
+        if username is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
     
-    user = await models.User.find_one(models.User.email == email)
+    user = await models.User.find_one(models.User.username == username)
     if user is None:
         raise credentials_exception
     if not user.is_active:

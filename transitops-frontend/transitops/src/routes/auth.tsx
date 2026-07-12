@@ -14,7 +14,7 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const { login, user, ready } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,7 +29,7 @@ function AuthPage() {
     setLoading(true);
     
     try {
-      const res = await login(email, password);
+      const res = await login(username, password);
       if (!res.ok) {
         setError(res.error ?? "Login failed");
       } else {
@@ -42,8 +42,8 @@ function AuthPage() {
     }
   };
 
-  const quickFill = (em: string, pass: string) => {
-    setEmail(em);
+  const quickFill = (user: string, pass: string) => {
+    setUsername(user);
     setPassword(pass);
     setError("");
   };
@@ -84,8 +84,8 @@ function AuthPage() {
 
           <form onSubmit={submit} className="mt-6 space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="you@transitops.io" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Label htmlFor="username">Username</Label>
+              <Input id="username" type="text" placeholder="admin" value={username} onChange={(e) => setUsername(e.target.value)} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -114,15 +114,15 @@ function AuthPage() {
             </p>
             <div className="grid gap-2">
               <button
-                onClick={() => quickFill("admin@transitops.com", "admin123")}
+                onClick={() => quickFill("admin", "admin123")}
                 className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2 text-left text-sm hover:border-primary/50"
               >
                 <span>Admin</span>
-                <span className="text-xs text-muted-foreground">admin@transitops.com</span>
+                <span className="text-xs text-muted-foreground">admin / admin123</span>
               </button>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              Default password: <code className="rounded bg-muted px-1">admin123</code>
+              Run seed script to create test users with different roles
               <br />
               <span className="text-xs">Make sure backend is running on http://localhost:8000</span>
             </p>
