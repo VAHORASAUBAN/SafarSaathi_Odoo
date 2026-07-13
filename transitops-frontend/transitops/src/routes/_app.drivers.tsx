@@ -67,7 +67,7 @@ function Drivers() {
 
   const updateStatus = async (id: string, status: DriverStatus) => {
     try {
-      await updateDriver.mutateAsync({ id: parseInt(id), data: { status: status.toLowerCase().replace(" ", "_") } });
+      await updateDriver.mutateAsync({ id, data: { status: status.toLowerCase().replace(" ", "_") } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update status");
     }
@@ -76,7 +76,7 @@ function Drivers() {
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this driver?")) return;
     try {
-      await deleteDriver.mutateAsync(parseInt(id));
+      await deleteDriver.mutateAsync(id);
       toast.success("Driver deleted.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to delete driver");

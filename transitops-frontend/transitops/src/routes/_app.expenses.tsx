@@ -69,7 +69,7 @@ function Expenses() {
     if (!fuel.vehicleId || fuel.liters <= 0) return toast.error("Select vehicle and enter liters.");
     try {
       await createFuelLog.mutateAsync({
-        vehicle_id: parseInt(fuel.vehicleId),
+        vehicle_id: fuel.vehicleId,
         liters: fuel.liters,
         cost: fuel.cost,
         fuel_date: fuel.date,
@@ -86,7 +86,7 @@ function Expenses() {
     if (!exp.vehicleId || exp.amount <= 0) return toast.error("Select vehicle and enter amount.");
     try {
       await createExpense.mutateAsync({
-        vehicle_id: parseInt(exp.vehicleId),
+        vehicle_id: exp.vehicleId,
         expense_type: exp.category.toLowerCase(),
         amount: exp.amount,
         expense_date: exp.date,

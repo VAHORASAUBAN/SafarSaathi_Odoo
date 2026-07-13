@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Optional
 from .. import models, schemas, auth
 
-router = APIRouter(prefix="/api/fuel", tags=["Fuel Logs"])
+router = APIRouter(prefix="/api/v1/fuel", tags=["Fuel Logs"])
 
 
 @router.get("", response_model=List[schemas.FuelLogResponse])
 async def get_fuel_logs(
     skip: int = 0,
     limit: int = 100,
-    vehicle_id: Optional[int] = None,
+    vehicle_id: Optional[str] = None,
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
     """Get all fuel logs with optional filters"""
@@ -34,7 +34,7 @@ async def create_fuel_log(
         models.UserRole.FINANCIAL_ANALYST
     ])
     
-    vehicle = await models.Vehicle.find_one(models.Vehicle.id == fuel_log.vehicle_id)
+    vehicle = await models.Vehicle.get(fuel_log.vehicle_id)
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     

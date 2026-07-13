@@ -75,8 +75,8 @@ function Trips() {
     
     try {
       await createTrip.mutateAsync({
-        vehicle_id: parseInt(vehicleId),
-        driver_id: parseInt(driverId),
+        vehicle_id: vehicleId,
+        driver_id: driverId,
         source,
         destination,
         cargo_weight: cargoWeight,
@@ -92,7 +92,7 @@ function Trips() {
   const doDispatch = async (id: string) => {
     try {
       await dispatchTrip.mutateAsync({
-        id: parseInt(id),
+        id,
         data: { dispatch_time: new Date().toISOString() }
       });
       toast.success("Trip dispatched — vehicle & driver now On Trip.");
@@ -105,7 +105,7 @@ function Trips() {
     if (!completeFor) return;
     try {
       await completeTrip.mutateAsync({
-        id: parseInt(completeFor),
+        id: completeFor,
         data: {
           end_odometer: finalOdo,
           fuel_consumed: fuel,
@@ -121,7 +121,7 @@ function Trips() {
 
   const doCancel = async (id: string) => {
     try {
-      await cancelTrip.mutateAsync(parseInt(id));
+      await cancelTrip.mutateAsync(id);
       toast.success("Trip cancelled.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to cancel trip");

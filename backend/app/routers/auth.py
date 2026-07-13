@@ -4,7 +4,7 @@ from datetime import timedelta
 from .. import models, schemas, auth
 from ..config import get_settings
 
-router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 settings = get_settings()
 
 
@@ -63,4 +63,12 @@ async def get_current_user_info(
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
     """Get current user information"""
-    return current_user
+    return schemas.UserResponse(
+        id=str(current_user.id),
+        username=current_user.username,
+        email=current_user.email,
+        full_name=current_user.full_name,
+        role=current_user.role,
+        is_active=current_user.is_active,
+        created_at=current_user.created_at
+    )

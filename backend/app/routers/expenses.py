@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Optional
 from .. import models, schemas, auth
 
-router = APIRouter(prefix="/api/expenses", tags=["Expenses"])
+router = APIRouter(prefix="/api/v1/expenses", tags=["Expenses"])
 
 
 @router.get("", response_model=List[schemas.ExpenseResponse])
 async def get_expenses(
     skip: int = 0,
     limit: int = 100,
-    vehicle_id: Optional[int] = None,
+    vehicle_id: Optional[str] = None,
     expense_type: Optional[str] = None,
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
@@ -37,7 +37,7 @@ async def create_expense(
         models.UserRole.FINANCIAL_ANALYST
     ])
     
-    vehicle = await models.Vehicle.find_one(models.Expense.vehicle_id == expense.vehicle_id)
+    vehicle = await models.Vehicle.get(expense.vehicle_id)
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     

@@ -1,220 +1,30 @@
-# TransitOps - Smart Transport Operations Platform
+# TransitOps
 
-Full-stack fleet management system with React + TypeScript frontend and FastAPI backend.
+TransitOps is a fleet operations platform with a FastAPI backend, MongoDB/Beanie persistence, and a React + TypeScript frontend built with TanStack Router, React Query, and shadcn/ui.
 
-## 🎯 Project Status
+## Current State
 
-**Backend:** ✅ Fully Functional
-- FastAPI REST API with JWT authentication
-- MongoDB database with Beanie ODM
-- Complete CRUD operations for all entities
-- Business rule enforcement
-- Dashboard analytics and KPIs
-- No migrations needed (schema-less)
+The backend exposes authenticated APIs for vehicles, drivers, trips, maintenance, fuel, expenses, and dashboard analytics. The frontend is connected to those APIs and uses role-aware navigation and RBAC checks.
 
-**Frontend:** ✅ UI Complete + 🔨 API Integration In Progress
-- Modern React 19 with TypeScript
-- TanStack Router for routing
-- React Query for data fetching
-- Tailwind CSS + shadcn/ui components
-- **NEW:** Complete API integration layer ready
-- **NEW:** JWT authentication implemented
-- **PENDING:** Update individual pages to use API
+## Stack
 
----
+- Backend: FastAPI, Beanie ODM, MongoDB, JWT auth
+- Frontend: React 19, TypeScript, TanStack Router, React Query, Tailwind CSS
 
-## 🚀 Next Steps: Integration Roadmap
+## Quick Start
 
-### Phase 1: Verify Setup (30 mins)
-1. Start both servers (see Quick Start above)
-2. Login and verify token in browser localStorage
-3. Check Network tab - API calls should include `Authorization: Bearer ...`
+### Backend
 
-### Phase 2: First Page - Dashboard (1-2 hours)
-**Use the provided example:**
-```bash
-cd src/routes
-copy _app.dashboard-new.tsx.example _app.dashboard.tsx
-```
-This shows the complete pattern: hooks, loading states, error handling, data mapping.
-
-### Phase 3: Update Remaining Pages (8-10 hours)
-Follow [PAGE_MIGRATION_CHECKLIST.md](PAGE_MIGRATION_CHECKLIST.md) for each page:
-- Fleet (vehicles)
-- Drivers
-- Trips
-- Maintenance
-- Expenses & Fuel
-- Analytics
-- Settings
-
-**The Pattern (from example):**
-```tsx
-// 1. Import hooks
-import { useVehicles, useCreateVehicle } from "@/hooks/useVehicles";
-import { mapApiVehiclesToFrontend } from "@/lib/mappers";
-
-// 2. Use hooks
-const { data: apiVehicles = [], isLoading, error } = useVehicles();
-const vehicles = mapApiVehiclesToFrontend(apiVehicles);
-const createVehicle = useCreateVehicle();
-
-// 3. Handle states
-if (isLoading) return <LoadingSkeleton />;
-if (error) return <ErrorMessage />;
-
-// 4. Use mutations
-const handleCreate = async (data) => {
-  await createVehicle.mutateAsync(mapFrontendVehicleToApi(data));
-};
-```
-
----
-
-## 🎓 Key Concepts
-
-### Authentication Flow
-1. Login → Get JWT token → Store in localStorage
-2. API client reads token and adds to every request
-3. Backend validates token and returns data
-
-### Data Mapping
-- Frontend uses camelCase: `regNumber`, `cargoWeight`
-- Backend uses snake_case: `registration_number`, `cargo_weight`
-- Use mappers from `src/lib/mappers.ts` to convert
-
-### React Query Hooks
-- `useVehicles()` - Fetches and caches data
-- `useCreateVehicle()` - Creates vehicle, invalidates cache
-- Automatic loading states, error handling, refetching
-
----
-
-## 📚 Documentation
-
-- **[QUICK_START.md](QUICK_START.md)** - Get backend + frontend running
-- **[INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md)** - Complete API integration tutorial
-- **[PAGE_MIGRATION_CHECKLIST.md](PAGE_MIGRATION_CHECKLIST.md)** - Step-by-step page updates
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions
-- **[backend/API_DOCUMENTATION.md](backend/API_DOCUMENTATION.md)** - Complete API reference
-
----
-
-## 🎯 Quick Start
-
-### 1. Start Backend
 ```bash
 cd backend
-python -m venv venv
-venv\Scripts\activate  # Windows
+.\.venv\Scripts\activate
 pip install -r requirements.txt
-
-# Configure .env file with DATABASE_URL and SECRET_KEY
-# Create database: CREATE DATABASE transitops;
-
 uvicorn app.main:app --reload
 ```
-**Backend:** http://localhost:8000 | **API Docs:** http://localhost:8000/docs
 
-### 2. Start Frontend
-```bash
-cd transitops-frontend/transitops
-npm install
-npm run dev
-```
-**Frontend:** http://localhost:5173
+API docs are available at http://localhost:8000/docs.
 
-### 3. Login
-- **Email:** `admin@transitops.com`
-- **Password:** `admin123`
-
-(Create this user via seed script or `/api/auth/register`)
-
----
-
-## 📊 Integration Status
-
-**✅ COMPLETE:**
-- Backend API (FastAPI + MySQL)
-- Frontend UI (React + TypeScript)
-- API Integration Layer:
-  - `src/lib/api.ts` - API client with JWT auth
-  - `src/lib/api-services.ts` - Service layer for all endpoints
-  - `src/lib/api-types.ts` - TypeScript types
-  - `src/lib/mappers.ts` - Data format converters
-  - `src/hooks/` - React Query hooks for each entity
-  - Real JWT authentication (not demo accounts)
-  - Example: `src/routes/_app.dashboard-new.tsx.example`
-
-**🔨 PENDING:**
-- Update pages from mock data (`useStore()`) to real API hooks
-- Estimated time: 10-12 hours
-- Pattern shown in dashboard example
-
-## 📁 Project Structure
-
-```
-SafarSaathi/
-├── backend/                    # FastAPI backend
-│   ├── app/
-│   │   ├── routers/           # API endpoints
-│   │   ├── models.py          # Database models
-│   │   ├── schemas.py         # Pydantic schemas
-│   │   ├── auth.py            # JWT authentication
-│   │   ├── crud.py            # Database operations
-│   │   └── main.py            # FastAPI application
-│   ├── requirements.txt
-│   ├── .env.example
-│   ├── API_DOCUMENTATION.md
-│   └── README.md
-│
-├── transitops-frontend/       # React frontend
-│   └── transitops/
-│       ├── src/
-│       │   ├── routes/        # Page components
-│       │   ├── components/    # Reusable UI components
-│       │   ├── hooks/         # ✨ NEW: React Query hooks
-│       │   ├── lib/
-│       │   │   ├── api.ts             # ✨ NEW: API client
-│       │   │   ├── api-types.ts       # ✨ NEW: API types
-│       │   │   ├── api-services.ts    # ✨ NEW: Service layer
-│       │   │   ├── auth.tsx           # ✨ UPDATED: Real JWT auth
-│       │   │   ├── store.tsx          # OLD: Mock data (to be replaced)
-│       │   │   └── types.ts
-│       │   └── ...
-│       ├── package.json
-│       └── .env               # ✨ NEW: API configuration
-│
-├── QUICK_START.md             # ✨ NEW: Getting started guide
-├── INTEGRATION_GUIDE.md       # ✨ NEW: API integration instructions
-└── README.md                  # This file
-```
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Python 3.8+
-- Node.js 16+
-- MySQL 5.7+
-
-### 1. Start Backend
-
-```bash
-cd backend
-python -m venv venv
-venv\Scripts\activate  # Windows
-pip install -r requirements.txt
-
-# Create .env file (see backend/.env.example)
-# Create MySQL database: transitops
-
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-**Backend running at:** http://localhost:8000
-**API Docs:** http://localhost:8000/docs
-
-### 2. Start Frontend
+### Frontend
 
 ```bash
 cd transitops-frontend/transitops
@@ -222,42 +32,30 @@ npm install
 npm run dev
 ```
 
-**Frontend running at:** http://localhost:5173
+The app runs at http://localhost:5173.
 
-### 3. Login
+### Login
 
-- **Email:** `admin@transitops.com`
-- **Password:** `admin123`
+- Email: admin@transitops.com
+- Password: admin123
 
-(Create this user via seed script or registration endpoint)
+If the demo account is missing, seed the database from the backend scripts before logging in.
 
-## ✨ What's New - API Integration
+## Role-Based Navigation
 
-We've built a complete API integration layer that's ready to use:
+The sidebar now uses the same RBAC matrix as Settings, so each role only sees the pages it can access.
 
-### ✅ Completed
+## Notes
 
-1. **API Client** (`src/lib/api.ts`)
-   - HTTP client with automatic JWT token injection
-   - Error handling and response parsing
-   - Support for JSON and form-data requests
+- Frontend API calls use `src/lib/api.ts`, `src/lib/api-services.ts`, `src/lib/api-types.ts`, and `src/lib/mappers.ts`.
+- The backend and frontend now both treat document ids as Mongo ObjectId strings at the API boundary.
+- Temporary validation scripts and one-off test guides were removed from the repo.
 
-2. **Type Definitions** (`src/lib/api-types.ts`)
-   - Complete TypeScript interfaces matching backend schemas
-   - Request and response types for all endpoints
+## Useful Docs
 
-3. **Service Layer** (`src/lib/api-services.ts`)
-   - Organized service functions for all API endpoints
-   - Auth, vehicles, drivers, trips, maintenance, fuel, expenses, dashboard
-
-4. **React Query Hooks** (`src/hooks/`)
-   - Custom hooks for each entity (vehicles, drivers, trips, etc.)
-   - Automatic caching, loading states, and error handling
-   - Cache invalidation on mutations
-
-5. **Authentication** (`src/lib/auth.tsx`)
-   - Real JWT-based authentication
-   - Token validation on app load
+- [Quick Start](QUICK_START.md)
+- [Troubleshooting](TROUBLESHOOTING.md)
+- [Backend API Documentation](backend/API_DOCUMENTATION.md)
    - Automatic token refresh flow
 
 6. **Example Implementation** (`src/routes/_app.dashboard-new.tsx.example`)

@@ -1,14 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Optional
 from datetime import datetime, timezone, date
-from .. import models, schemas, auth
+from .. import models, schemas, auth, rbac
 
-router = APIRouter(prefix="/api/trips", tags=["Trips"])
+router = APIRouter(prefix="/api/v1/trips", tags=["Trips"])
 
 
-async def validate_trip_creation(vehicle_id: int, driver_id: int, cargo_weight: float):
+async def validate_trip_creation(vehicle_id: str, driver_id: str, cargo_weight: float):
     """Validate trip creation against business rules"""
-    vehicle = await models.Vehicle.find_one(models.Vehicle.id == vehicle_id)
+    vehicle = await models.Vehicle.get(vehicle_id)
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     
@@ -27,7 +27,7 @@ async def validate_trip_creation(vehicle_id: int, driver_id: int, cargo_weight: 
             detail=f"Cargo weight ({cargo_weight} kg) exceeds vehicle capacity ({vehicle.max_load_capacity} kg)"
         )
     
-    driver = await models.Driver.find_one(models.Driver.id == driver_id)
+    driver = await models.Driver.get(driver_id)
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found")
     
@@ -48,8 +48,8 @@ async def get_trips(
     skip: int = 0,
     limit: int = 100,
     status: Optional[models.TripStatus] = None,
-    vehicle_id: Optional[int] = None,
-    driver_id: Optional[int] = None,
+    vehicle_id: Optional[str] = None,
+    driver_id: Optional[str] = None,
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
     """Get all trips with optional filters"""
@@ -68,11 +68,11 @@ async def get_trips(
 
 @router.get("/{trip_id}", response_model=schemas.TripResponse)
 async def get_trip(
-    trip_id: int,
+    trip_id: str,
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
     """Get a specific trip by ID"""
-    trip = await models.Trip.find_one(models.Trip.id == trip_id)
+    trip = await models.Trip.get(trip_id)
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found")
     return trip
@@ -95,14 +95,14 @@ async def create_trip(
 
 @router.put("/{trip_id}", response_model=schemas.TripResponse)
 async def update_trip(
-    trip_id: int,
+    trip_id: str,
     trip: schemas.TripUpdate,
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
     """Update a trip (only DRAFT trips can be updated)"""
     auth.check_permission(current_user, [models.UserRole.DISPATCHER, models.UserRole.FLEET_MANAGER])
     
-    db_trip = await models.Trip.find_one(models.Trip.id == trip_id)
+    db_trip = await models.Trip.get(trip_id)
     if not db_trip:
         raise HTTPException(status_code=404, detail="Trip not found")
     
@@ -116,14 +116,14 @@ async def update_trip(
 
 @router.post("/{trip_id}/dispatch", response_model=schemas.TripResponse)
 async def dispatch_trip(
-    trip_id: int,
+    trip_id: str,
     dispatch_data: schemas.TripDispatch,
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
     """Dispatch a trip - changes status to DISPATCHED and updates vehicle/driver status to ON_TRIP"""
     auth.check_permission(current_user, [models.UserRole.DISPATCHER, models.UserRole.FLEET_MANAGER])
     
-    trip = await models.Trip.find_one(models.Trip.id == trip_id)
+    trip = await models.Trip.get(trip_id)
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found")
     
@@ -186,14 +186,14 @@ async def complete_trip(
     await trip.save()
     
     # Update vehicle
-    vehicle = await models.Vehicle.find_one(models.Vehicle.id == trip.vehicle_id)
+    vehicle = await models.Vehicle.get(trip.vehicle_id)
     if vehicle:
         vehicle.odometer = completion_data.end_odometer
         vehicle.status = models.VehicleStatus.AVAILABLE
         await vehicle.save()
     
     # Update driver
-    driver = await models.Driver.find_one(models.Driver.id == trip.driver_id)
+    driver = await models.Driver.get(trip.driver_id)
     if driver:
         driver.status = models.DriverStatus.AVAILABLE
         await driver.save()
@@ -203,13 +203,13 @@ async def complete_trip(
 
 @router.post("/{trip_id}/cancel", response_model=schemas.TripResponse)
 async def cancel_trip(
-    trip_id: int,
+    trip_id: str,
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
     """Cancel a trip - restores vehicle and driver to AVAILABLE if dispatched"""
     auth.check_permission(current_user, [models.UserRole.DISPATCHER, models.UserRole.FLEET_MANAGER])
     
-    trip = await models.Trip.find_one(models.Trip.id == trip_id)
+    trip = await models.Trip.get(trip_id)
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found")
     
@@ -221,12 +221,12 @@ async def cancel_trip(
     
     # If dispatched, restore vehicle and driver status
     if trip.status == models.TripStatus.DISPATCHED:
-        vehicle = await models.Vehicle.find_one(models.Vehicle.id == trip.vehicle_id)
+        vehicle = await models.Vehicle.get(trip.vehicle_id)
         if vehicle:
             vehicle.status = models.VehicleStatus.AVAILABLE
             await vehicle.save()
         
-        driver = await models.Driver.find_one(models.Driver.id == trip.driver_id)
+        driver = await models.Driver.get(trip.driver_id)
         if driver:
             driver.status = models.DriverStatus.AVAILABLE
             await driver.save()

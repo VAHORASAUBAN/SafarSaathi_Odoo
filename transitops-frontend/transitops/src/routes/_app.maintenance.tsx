@@ -49,7 +49,7 @@ function Maintenance() {
     if (!vehicleId) return toast.error("Select a vehicle.");
     try {
       await createMaintenance.mutateAsync({
-        vehicle_id: parseInt(vehicleId),
+        vehicle_id: vehicleId,
         maintenance_type: serviceType,
         cost,
         scheduled_date: date,
@@ -65,7 +65,7 @@ function Maintenance() {
   const closeMaintenanceRecord = async (id: string) => {
     try {
       await updateMaintenance.mutateAsync({
-        id: parseInt(id),
+        id,
         data: { status: "completed" }
       });
       toast.success("Maintenance closed.");

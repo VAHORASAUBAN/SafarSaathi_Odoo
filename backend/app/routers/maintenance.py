@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Optional
 from .. import models, schemas, auth
 
-router = APIRouter(prefix="/api/maintenance", tags=["Maintenance"])
+router = APIRouter(prefix="/api/v1/maintenance", tags=["Maintenance"])
 
 
 @router.get("", response_model=List[schemas.MaintenanceLogResponse])
@@ -27,11 +27,11 @@ async def get_maintenance_logs(
 
 @router.get("/{maintenance_id}", response_model=schemas.MaintenanceLogResponse)
 async def get_maintenance_log(
-    maintenance_id: int,
+    maintenance_id: str,
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
     """Get a specific maintenance log by ID"""
-    log = await models.MaintenanceLog.find_one(models.MaintenanceLog.id == maintenance_id)
+    log = await models.MaintenanceLog.get(maintenance_id)
     if not log:
         raise HTTPException(status_code=404, detail="Maintenance log not found")
     return log
@@ -62,14 +62,14 @@ async def create_maintenance_log(
 
 @router.put("/{maintenance_id}", response_model=schemas.MaintenanceLogResponse)
 async def update_maintenance_log(
-    maintenance_id: int,
+    maintenance_id: str,
     maintenance: schemas.MaintenanceLogUpdate,
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
     """Update a maintenance log - completing maintenance restores vehicle to AVAILABLE"""
     auth.check_permission(current_user, [models.UserRole.FLEET_MANAGER])
     
-    db_maintenance = await models.MaintenanceLog.find_one(models.MaintenanceLog.id == maintenance_id)
+    db_maintenance = await models.MaintenanceLog.get(maintenance_id)
     if not db_maintenance:
         raise HTTPException(status_code=404, detail="Maintenance log not found")
     
@@ -78,7 +78,7 @@ async def update_maintenance_log(
     # Handle status changes
     if "status" in update_data:
         new_status = update_data["status"]
-        vehicle = await models.Vehicle.find_one(models.Vehicle.id == db_maintenance.vehicle_id)
+        vehicle = await models.Vehicle.get(db_maintenance.vehicle_id)
         
         if vehicle:
             # If completing or cancelling maintenance, restore vehicle to AVAILABLE

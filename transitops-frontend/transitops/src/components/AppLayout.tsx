@@ -19,14 +19,14 @@ import type { ReactNode } from "react";
 import type { UserRole } from "@/lib/types";
 
 const NAV = [
-  { key: "dashboard", to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ['admin', 'fleet_manager', 'dispatcher', 'driver', 'safety_officer', 'financial_analyst'] as UserRole[] },
-  { key: "fleet", to: "/fleet", label: "Vehicle Registry", icon: Truck, roles: ['admin', 'fleet_manager', 'dispatcher', 'driver', 'safety_officer', 'financial_analyst'] as UserRole[] },
-  { key: "drivers", to: "/drivers", label: "Drivers", icon: Users, roles: ['admin', 'fleet_manager', 'dispatcher', 'safety_officer'] as UserRole[] },
-  { key: "trips", to: "/trips", label: "Trip Dispatcher", icon: RouteIcon, roles: ['admin', 'fleet_manager', 'dispatcher', 'driver', 'safety_officer', 'financial_analyst'] as UserRole[] },
-  { key: "maintenance", to: "/maintenance", label: "Maintenance", icon: Wrench, roles: ['admin', 'fleet_manager', 'safety_officer', 'financial_analyst'] as UserRole[] },
-  { key: "expenses", to: "/expenses", label: "Fuel & Expenses", icon: Receipt, roles: ['admin', 'fleet_manager', 'financial_analyst'] as UserRole[] },
-  { key: "analytics", to: "/analytics", label: "Reports & Analytics", icon: BarChart3, roles: ['admin', 'fleet_manager', 'safety_officer', 'financial_analyst'] as UserRole[] },
-  { key: "settings", to: "/settings", label: "Settings", icon: Settings, roles: ['admin', 'fleet_manager', 'dispatcher', 'driver', 'safety_officer', 'financial_analyst'] as UserRole[] },
+  { key: "dashboard", to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, resource: "dashboard" },
+  { key: "fleet", to: "/fleet", label: "Vehicle Registry", icon: Truck, resource: "vehicles" },
+  { key: "drivers", to: "/drivers", label: "Drivers", icon: Users, resource: "drivers" },
+  { key: "trips", to: "/trips", label: "Trip Dispatcher", icon: RouteIcon, resource: "trips" },
+  { key: "maintenance", to: "/maintenance", label: "Maintenance", icon: Wrench, resource: "maintenance" },
+  { key: "expenses", to: "/expenses", label: "Fuel & Expenses", icon: Receipt, resource: "expenses" },
+  { key: "analytics", to: "/analytics", label: "Reports & Analytics", icon: BarChart3, resource: "analytics" },
+  { key: "settings", to: "/settings", label: "Settings", icon: Settings, resource: "settings" },
 ] as const;
 
 // Role display labels
@@ -40,7 +40,7 @@ const ROLE_LABELS: Record<UserRole, { label: string; color: string }> = {
 };
 
 export function AppLayout({ children }: { children: ReactNode }) {
-  const { user, logout, hasRole } = useAuth();
+  const { user, logout, canAccess } = useAuth();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
@@ -64,7 +64,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </div>
         <nav className="flex-1 space-y-1 px-3 py-2">
-          {NAV.filter((n) => user && n.roles.includes(user.role)).map((n) => {
+          {NAV.filter((n) => user && canAccess(n.resource, "view")).map((n) => {
             const active = pathname.startsWith(n.to);
             return (
               <Link

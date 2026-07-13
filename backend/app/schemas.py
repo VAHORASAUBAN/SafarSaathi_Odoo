@@ -1,3 +1,4 @@
+from beanie import PydanticObjectId
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from datetime import datetime, date
 from typing import Optional
@@ -17,7 +18,7 @@ class UserCreate(UserBase):
 
 
 class UserResponse(UserBase):
-    id: str  # MongoDB ObjectId as string
+    id: PydanticObjectId
     is_active: bool
     created_at: datetime
     
@@ -65,7 +66,7 @@ class VehicleUpdate(BaseModel):
 
 
 class VehicleResponse(VehicleBase):
-    id: int
+    id: PydanticObjectId
     status: VehicleStatus
     created_at: datetime
     updated_at: Optional[datetime]
@@ -99,7 +100,7 @@ class DriverUpdate(BaseModel):
 
 
 class DriverResponse(DriverBase):
-    id: int
+    id: PydanticObjectId
     status: DriverStatus
     created_at: datetime
     updated_at: Optional[datetime]
@@ -110,8 +111,8 @@ class DriverResponse(DriverBase):
 
 # Trip Schemas
 class TripBase(BaseModel):
-    vehicle_id: int
-    driver_id: int
+    vehicle_id: str  # MongoDB ObjectId as string
+    driver_id: str  # MongoDB ObjectId as string
     source: str
     destination: str
     cargo_weight: float = Field(..., gt=0)
@@ -140,7 +141,7 @@ class TripUpdate(BaseModel):
 
 
 class TripResponse(TripBase):
-    id: int
+    id: PydanticObjectId
     actual_distance: Optional[float]
     start_odometer: Optional[float]
     end_odometer: Optional[float]
@@ -159,7 +160,7 @@ class TripResponse(TripBase):
 
 # Maintenance Schemas
 class MaintenanceLogBase(BaseModel):
-    vehicle_id: int
+    vehicle_id: str  # MongoDB ObjectId as string
     maintenance_type: str
     description: Optional[str] = None
     cost: float = Field(..., ge=0)
@@ -182,7 +183,7 @@ class MaintenanceLogUpdate(BaseModel):
 
 
 class MaintenanceLogResponse(MaintenanceLogBase):
-    id: int
+    id: PydanticObjectId
     completion_date: Optional[date]
     status: MaintenanceStatus
     created_at: datetime
@@ -195,7 +196,7 @@ class MaintenanceLogResponse(MaintenanceLogBase):
 
 # Fuel Log Schemas
 class FuelLogBase(BaseModel):
-    vehicle_id: int
+    vehicle_id: str  # MongoDB ObjectId as string
     liters: float = Field(..., gt=0)
     cost: float = Field(..., gt=0)
     odometer_reading: float = Field(..., ge=0)
@@ -207,7 +208,7 @@ class FuelLogCreate(FuelLogBase):
 
 
 class FuelLogResponse(FuelLogBase):
-    id: int
+    id: PydanticObjectId
     created_at: datetime
     
     class Config:
@@ -216,7 +217,7 @@ class FuelLogResponse(FuelLogBase):
 
 # Expense Schemas
 class ExpenseBase(BaseModel):
-    vehicle_id: int
+    vehicle_id: str  # MongoDB ObjectId as string
     expense_type: str
     description: Optional[str] = None
     amount: float = Field(..., gt=0)
@@ -228,7 +229,7 @@ class ExpenseCreate(ExpenseBase):
 
 
 class ExpenseResponse(ExpenseBase):
-    id: int
+    id: PydanticObjectId
     created_at: datetime
     
     class Config:
@@ -247,7 +248,7 @@ class DashboardKPIs(BaseModel):
 
 
 class VehicleAnalytics(BaseModel):
-    vehicle_id: int
+    vehicle_id: str  # MongoDB ObjectId as string
     registration_number: str
     vehicle_name: str
     fuel_efficiency: Optional[float]  # km per liter

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Optional
 from datetime import date
-from .. import models, schemas, auth
+from .. import models, schemas, auth, rbac
 
-router = APIRouter(prefix="/api/drivers", tags=["Drivers"])
+router = APIRouter(prefix="/api/v1/drivers", tags=["Drivers"])
 
 
 @router.get("", response_model=List[schemas.DriverResponse])
@@ -11,7 +11,7 @@ async def get_drivers(
     skip: int = 0,
     limit: int = 100,
     status: Optional[models.DriverStatus] = None,
-    current_user: models.User = Depends(auth.get_current_active_user)
+    current_user: models.User = Depends(rbac.require_driver_view())
 ):
     """Get all drivers with optional filters"""
     query = models.Driver.find()
@@ -25,7 +25,7 @@ async def get_drivers(
 
 @router.get("/available", response_model=List[schemas.DriverResponse])
 async def get_available_drivers(
-    current_user: models.User = Depends(auth.get_current_active_user)
+    current_user: models.User = Depends(rbac.require_driver_view())
 ):
     """Get drivers available for dispatch (Available status with valid license)"""
     today = date.today()
@@ -38,11 +38,11 @@ async def get_available_drivers(
 
 @router.get("/{driver_id}", response_model=schemas.DriverResponse)
 async def get_driver(
-    driver_id: int,
-    current_user: models.User = Depends(auth.get_current_active_user)
+    driver_id: str,
+    current_user: models.User = Depends(rbac.require_driver_view())
 ):
     """Get a specific driver by ID"""
-    driver = await models.Driver.find_one(models.Driver.id == driver_id)
+    driver = await models.Driver.get(driver_id)
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found")
     return driver
@@ -51,10 +51,9 @@ async def get_driver(
 @router.post("", response_model=schemas.DriverResponse)
 async def create_driver(
     driver: schemas.DriverCreate,
-    current_user: models.User = Depends(auth.get_current_active_user)
+    current_user: models.User = Depends(rbac.require_driver_create())
 ):
     """Create a new driver"""
-    auth.check_permission(current_user, [models.UserRole.FLEET_MANAGER, models.UserRole.SAFETY_OFFICER])
     
     # Check if license number already exists
     existing = await models.Driver.find_one(
@@ -73,14 +72,13 @@ async def create_driver(
 
 @router.put("/{driver_id}", response_model=schemas.DriverResponse)
 async def update_driver(
-    driver_id: int,
+    driver_id: str,
     driver: schemas.DriverUpdate,
-    current_user: models.User = Depends(auth.get_current_active_user)
+    current_user: models.User = Depends(rbac.require_driver_edit())
 ):
     """Update a driver"""
-    auth.check_permission(current_user, [models.UserRole.FLEET_MANAGER, models.UserRole.SAFETY_OFFICER])
     
-    db_driver = await models.Driver.find_one(models.Driver.id == driver_id)
+    db_driver = await models.Driver.get(driver_id)
     if not db_driver:
         raise HTTPException(status_code=404, detail="Driver not found")
     
@@ -91,13 +89,12 @@ async def update_driver(
 
 @router.delete("/{driver_id}")
 async def delete_driver(
-    driver_id: int,
-    current_user: models.User = Depends(auth.get_current_active_user)
+    driver_id: str,
+    current_user: models.User = Depends(rbac.require_driver_delete())
 ):
     """Delete a driver"""
-    auth.check_permission(current_user, [models.UserRole.FLEET_MANAGER, models.UserRole.SAFETY_OFFICER])
     
-    db_driver = await models.Driver.find_one(models.Driver.id == driver_id)
+    db_driver = await models.Driver.get(driver_id)
     if not db_driver:
         raise HTTPException(status_code=404, detail="Driver not found")
     

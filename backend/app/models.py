@@ -1,5 +1,5 @@
-from beanie import Document
-from pydantic import Field, EmailStr
+from beanie import Document, PydanticObjectId
+from pydantic import Field, EmailStr, field_serializer
 from typing import Optional
 from datetime import datetime
 from enum import Enum
@@ -68,6 +68,10 @@ class Vehicle(Document):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = None
     
+    @field_serializer('id')
+    def serialize_id(self, value: PydanticObjectId, _info):
+        return str(value)
+    
     class Settings:
         name = "vehicles"
         indexes = ["registration_number", "status", "region"]
@@ -77,7 +81,7 @@ class Driver(Document):
     name: str
     license_number: str = Field(..., unique=True)
     license_category: str
-    license_expiry_date: str  # ISO date string
+    license_expiry_date: datetime  # Store as datetime for MongoDB
     contact_number: str
     safety_score: float = 100.0
     status: DriverStatus = DriverStatus.AVAILABLE

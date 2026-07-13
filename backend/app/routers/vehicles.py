@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Optional
-from .. import models, schemas, auth
+from .. import models, schemas, auth, rbac
 
-router = APIRouter(prefix="/api/vehicles", tags=["Vehicles"])
+router = APIRouter(prefix="/api/v1/vehicles", tags=["Vehicles"])
 
 
 @router.get("", response_model=List[schemas.VehicleResponse])
@@ -12,7 +12,7 @@ async def get_vehicles(
     status: Optional[models.VehicleStatus] = None,
     vehicle_type: Optional[str] = None,
     region: Optional[str] = None,
-    current_user: models.User = Depends(auth.get_current_active_user)
+    current_user: models.User = Depends(rbac.require_vehicle_view())
 ):
     """Get all vehicles with optional filters"""
     query = models.Vehicle.find()
@@ -30,7 +30,7 @@ async def get_vehicles(
 
 @router.get("/available", response_model=List[schemas.VehicleResponse])
 async def get_available_vehicles(
-    current_user: models.User = Depends(auth.get_current_active_user)
+    current_user: models.User = Depends(rbac.require_vehicle_view())
 ):
     """Get vehicles available for dispatch"""
     vehicles = await models.Vehicle.find(
@@ -41,11 +41,11 @@ async def get_available_vehicles(
 
 @router.get("/{vehicle_id}", response_model=schemas.VehicleResponse)
 async def get_vehicle(
-    vehicle_id: int,
-    current_user: models.User = Depends(auth.get_current_active_user)
+    vehicle_id: str,
+    current_user: models.User = Depends(rbac.require_vehicle_view())
 ):
     """Get a specific vehicle by ID"""
-    vehicle = await models.Vehicle.find_one(models.Vehicle.id == vehicle_id)
+    vehicle = await models.Vehicle.get(vehicle_id)
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     return vehicle
@@ -54,10 +54,9 @@ async def get_vehicle(
 @router.post("", response_model=schemas.VehicleResponse)
 async def create_vehicle(
     vehicle: schemas.VehicleCreate,
-    current_user: models.User = Depends(auth.get_current_active_user)
+    current_user: models.User = Depends(rbac.require_vehicle_create())
 ):
     """Create a new vehicle"""
-    auth.check_permission(current_user, [models.UserRole.FLEET_MANAGER])
     
     # Check if registration number already exists
     existing = await models.Vehicle.find_one(
@@ -76,14 +75,13 @@ async def create_vehicle(
 
 @router.put("/{vehicle_id}", response_model=schemas.VehicleResponse)
 async def update_vehicle(
-    vehicle_id: int,
+    vehicle_id: str,
     vehicle: schemas.VehicleUpdate,
-    current_user: models.User = Depends(auth.get_current_active_user)
+    current_user: models.User = Depends(rbac.require_vehicle_edit())
 ):
     """Update a vehicle"""
-    auth.check_permission(current_user, [models.UserRole.FLEET_MANAGER])
     
-    db_vehicle = await models.Vehicle.find_one(models.Vehicle.id == vehicle_id)
+    db_vehicle = await models.Vehicle.get(vehicle_id)
     if not db_vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     
@@ -94,13 +92,12 @@ async def update_vehicle(
 
 @router.delete("/{vehicle_id}")
 async def delete_vehicle(
-    vehicle_id: int,
-    current_user: models.User = Depends(auth.get_current_active_user)
+    vehicle_id: str,
+    current_user: models.User = Depends(rbac.require_vehicle_delete())
 ):
     """Delete a vehicle"""
-    auth.check_permission(current_user, [models.UserRole.FLEET_MANAGER])
     
-    db_vehicle = await models.Vehicle.find_one(models.Vehicle.id == vehicle_id)
+    db_vehicle = await models.Vehicle.get(vehicle_id)
     if not db_vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     
@@ -110,11 +107,11 @@ async def delete_vehicle(
 
 @router.get("/{vehicle_id}/analytics", response_model=schemas.VehicleAnalytics)
 async def get_vehicle_analytics(
-    vehicle_id: int,
-    current_user: models.User = Depends(auth.get_current_active_user)
+    vehicle_id: str,
+    current_user: models.User = Depends(rbac.require_vehicle_view())
 ):
     """Get analytics for a specific vehicle"""
-    vehicle = await models.Vehicle.find_one(models.Vehicle.id == vehicle_id)
+    vehicle = await models.Vehicle.get(vehicle_id)
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     

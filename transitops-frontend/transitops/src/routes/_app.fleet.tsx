@@ -77,7 +77,7 @@ function Fleet() {
 
   const updateStatus = async (id: string, status: VehicleStatus) => {
     try {
-      await updateVehicle.mutateAsync({ id: parseInt(id), data: { status: status.toLowerCase().replace(" ", "_") } });
+      await updateVehicle.mutateAsync({ id, data: { status: status.toLowerCase().replace(" ", "_") } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update status");
     }
@@ -86,7 +86,7 @@ function Fleet() {
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this vehicle?")) return;
     try {
-      await deleteVehicle.mutateAsync(parseInt(id));
+      await deleteVehicle.mutateAsync(id);
       toast.success("Vehicle deleted.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to delete vehicle");

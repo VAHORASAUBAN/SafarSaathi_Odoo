@@ -1,18 +1,20 @@
 from fastapi import APIRouter, Depends
 from typing import List
-from .. import models, schemas, auth
+from .. import models, schemas, auth, rbac
 
-router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
+router = APIRouter(prefix="/api/v1/dashboard", tags=["Dashboard"])
 
 
 @router.get("/kpis", response_model=schemas.DashboardKPIs)
 async def get_dashboard_kpis(
-    current_user: models.User = Depends(auth.get_current_active_user)
+    current_user: models.User = Depends(rbac.require_dashboard_view())
 ):
     """Get dashboard KPIs"""
+    from beanie.operators import In
+    
     # Count vehicles by status
     active_vehicles_count = await models.Vehicle.find(
-        models.Vehicle.status.in_([models.VehicleStatus.AVAILABLE, models.VehicleStatus.ON_TRIP])
+        In(models.Vehicle.status, [models.VehicleStatus.AVAILABLE, models.VehicleStatus.ON_TRIP])
     ).count()
     
     available_vehicles_count = await models.Vehicle.find(
@@ -34,7 +36,7 @@ async def get_dashboard_kpis(
     
     # Count drivers on duty
     drivers_on_duty_count = await models.Driver.find(
-        models.Driver.status.in_([models.DriverStatus.AVAILABLE, models.DriverStatus.ON_TRIP])
+        In(models.Driver.status, [models.DriverStatus.AVAILABLE, models.DriverStatus.ON_TRIP])
     ).count()
     
     # Calculate fleet utilization
@@ -61,7 +63,7 @@ async def get_dashboard_kpis(
 
 @router.get("/analytics", response_model=schemas.FleetAnalytics)
 async def get_fleet_analytics(
-    current_user: models.User = Depends(auth.get_current_active_user)
+    current_user: models.User = Depends(rbac.require_analytics_view())
 ):
     """Get fleet-wide analytics"""
     # Get all completed trips
